@@ -1,140 +1,93 @@
-SHELL := /bin/bash
-
-GO            ?= go
-GOFMT         ?= gofmt
-GOIMPORTS     ?= goimports
-GOLANGCI_LINT ?= golangci-lint
-GOVULNCHECK   ?= govulncheck
-GORELEASER    ?= goreleaser
-
-PKGS          := ./...
-COVERAGE_OUT  ?= coverage.out
-COVERAGE_HTML ?= coverage.html
-
-GOIMPORTS_INSTALL   := $(GO) install golang.org/x/tools/cmd/goimports@latest
-GOLANGCI_INSTALL    := https://golangci-lint.run/usage/install/
-GOVULNCHECK_INSTALL := $(GO) install golang.org/x/vuln/cmd/govulncheck@latest
-GORELEASER_INSTALL  := $(GO) install github.com/goreleaser/goreleaser/v2@latest
-
 .DEFAULT_GOAL := help
+SHELL := bash
+.SHELLFLAGS := -eu -o pipefail -c
+
+GO           ?= go
+GOBIN        ?= $(shell $(GO) env GOPATH)/bin
+GOLANGCI     ?= $(GOBIN)/golangci-lint
+GOIMPORTS    ?= $(GOBIN)/goimports
+GOVULNCHECK  ?= $(GOBIN)/govulncheck
+GORELEASER   ?= goreleaser
+
+GO_FILES     := $(shell find . -type f -name '*.go' -not -path './.git/*' 2>/dev/null)
+PKG          := ./...
+BDD_PKG      := ./tests/bdd/...
+COVER_OUT    := coverage.out
+COVER_HTML   := coverage.html
 
 .PHONY: help
-help: ## Print available targets
-	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| sort \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: check
-check: fmt-check vet lint test tidy-check security ## Run the full quality gate
+check: fmt-check vet lint tidy-check test test-bdd coverage security ## Run the full quality gate (mirrors CI)
 
 .PHONY: test
-test: ## Run unit tests with -race
-	$(GO) test -race -count=1 $(PKGS)
+test: ## Run unit tests with race detector
+	$(GO) test -race -count=1 $(PKG)
 
 .PHONY: test-bdd
-test-bdd: ## Run BDD tests (no-op until tests/bdd/ exists)
+test-bdd: ## Run BDD tests
 	@if [ -d tests/bdd ]; then \
-		$(GO) test -race -count=1 -tags bdd ./tests/bdd/...; \
+		$(GO) test -race -count=1 -tags bdd $(BDD_PKG); \
 	else \
-		echo "tests/bdd/ not present yet; skipping BDD run"; \
+		echo "tests/bdd not present yet — skipping BDD run"; \
 	fi
 
 .PHONY: lint
 lint: ## Run golangci-lint
-	@command -v $(GOLANGCI_LINT) >/dev/null 2>&1 || { \
-		echo "golangci-lint not found on PATH."; \
-		echo "Install: see $(GOLANGCI_INSTALL)"; \
-		exit 1; \
-	}
-	$(GOLANGCI_LINT) run $(PKGS)
+	$(GOLANGCI) run $(PKG)
 
 .PHONY: vet
 vet: ## Run go vet
-	$(GO) vet $(PKGS)
+	$(GO) vet $(PKG)
 
 .PHONY: fmt
-fmt: ## Auto-fix gofmt and goimports
-	$(GOFMT) -s -w .
-	@command -v $(GOIMPORTS) >/dev/null 2>&1 || { \
-		echo "goimports not found on PATH."; \
-		echo "Install: $(GOIMPORTS_INSTALL)"; \
-		exit 1; \
-	}
-	$(GOIMPORTS) -w -local github.com/axonops/syncmap .
+fmt: ## Auto-format Go source files
+	$(GO) fmt $(PKG)
+	@if command -v $(GOIMPORTS) >/dev/null 2>&1; then $(GOIMPORTS) -w $(GO_FILES); fi
 
 .PHONY: fmt-check
-fmt-check: ## Fail on any gofmt/goimports diff
-	@out=$$( $(GOFMT) -s -l . ); \
-	if [ -n "$$out" ]; then \
-		echo "gofmt diff:"; echo "$$out"; exit 1; \
-	fi
-	@if command -v $(GOIMPORTS) >/dev/null 2>&1; then \
-		out=$$( $(GOIMPORTS) -l -local github.com/axonops/syncmap . ); \
-		if [ -n "$$out" ]; then \
-			echo "goimports diff:"; echo "$$out"; exit 1; \
-		fi; \
-	else \
-		echo "goimports not found on PATH (skipping); install with: $(GOIMPORTS_INSTALL)"; \
-	fi
+fmt-check: ## Fail if any Go file is unformatted
+	@out=$$(gofmt -s -l .); if [ -n "$$out" ]; then echo "gofmt diff:"; echo "$$out"; exit 1; fi
+	@if command -v $(GOIMPORTS) >/dev/null 2>&1; then out=$$($(GOIMPORTS) -l .); if [ -n "$$out" ]; then echo "goimports diff:"; echo "$$out"; exit 1; fi; fi
 
 .PHONY: bench
-bench: ## Run benchmarks with allocation reports
-	$(GO) test -race -bench=. -benchmem -run='^$$' $(PKGS)
+bench: ## Run benchmarks
+	$(GO) test -bench=. -benchmem -run=^$$ $(PKG)
 
 .PHONY: coverage
-coverage: ## Generate and summarise a coverage report
-	$(GO) test -race -covermode=atomic -coverprofile=$(COVERAGE_OUT) $(PKGS)
-	$(GO) tool cover -func=$(COVERAGE_OUT) | tail -1
-	$(GO) tool cover -html=$(COVERAGE_OUT) -o $(COVERAGE_HTML)
-	@echo "HTML report: $(COVERAGE_HTML)"
+coverage: ## Generate coverage profile and HTML report for the library
+	$(GO) test -race -coverprofile=$(COVER_OUT) -covermode=atomic .
+	$(GO) tool cover -func=$(COVER_OUT) | tail -1
+	$(GO) tool cover -html=$(COVER_OUT) -o $(COVER_HTML)
 
 .PHONY: tidy
 tidy: ## Run go mod tidy
 	$(GO) mod tidy
 
 .PHONY: tidy-check
-tidy-check: ## Fail if go mod tidy would change go.mod or go.sum
-	@tmp=$$(mktemp -d); \
-	cp go.mod $$tmp/go.mod; \
-	if [ -f go.sum ]; then cp go.sum $$tmp/go.sum; fi; \
-	$(GO) mod tidy; \
-	status=0; \
-	if ! cmp -s go.mod $$tmp/go.mod; then \
-		echo "go mod tidy changed go.mod:"; diff -u $$tmp/go.mod go.mod || true; status=1; \
-	fi; \
-	if [ -f $$tmp/go.sum ] || [ -f go.sum ]; then \
-		if ! cmp -s $$tmp/go.sum go.sum 2>/dev/null; then \
-			echo "go mod tidy changed go.sum"; status=1; \
-		fi; \
-	fi; \
-	cp $$tmp/go.mod go.mod; \
-	if [ -f $$tmp/go.sum ]; then cp $$tmp/go.sum go.sum; fi; \
-	rm -rf $$tmp; \
-	exit $$status
+tidy-check: ## Fail if go mod tidy would modify go.mod or go.sum
+	@cp go.mod go.mod.bak
+	@[ -f go.sum ] && cp go.sum go.sum.bak || true
+	@$(GO) mod tidy
+	@if ! diff -q go.mod go.mod.bak >/dev/null; then mv go.mod.bak go.mod; [ -f go.sum.bak ] && mv go.sum.bak go.sum || true; echo "go.mod drift — run 'make tidy'"; exit 1; fi
+	@if [ -f go.sum ] && [ -f go.sum.bak ] && ! diff -q go.sum go.sum.bak >/dev/null; then mv go.sum.bak go.sum; mv go.mod.bak go.mod; echo "go.sum drift — run 'make tidy'"; exit 1; fi
+	@rm -f go.mod.bak go.sum.bak
 
 .PHONY: security
-security: ## Run govulncheck (skips cleanly if tool is absent)
+security: ## Run govulncheck
 	@if command -v $(GOVULNCHECK) >/dev/null 2>&1; then \
-		$(GOVULNCHECK) $(PKGS); \
+		$(GOVULNCHECK) $(PKG); \
 	else \
-		echo "govulncheck not found on PATH (skipping)."; \
-		echo "Install: $(GOVULNCHECK_INSTALL)"; \
+		echo "govulncheck not installed — skipping (install: go install golang.org/x/vuln/cmd/govulncheck@latest)"; \
 	fi
 
 .PHONY: release-check
-release-check: ## Validate GoReleaser config (skips cleanly if tool or config absent)
-	@if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
-		echo ".goreleaser config not present yet (lands in #4); skipping"; \
-		exit 0; \
-	fi; \
-	if command -v $(GORELEASER) >/dev/null 2>&1; then \
-		$(GORELEASER) check; \
-	else \
-		echo "goreleaser not found on PATH (skipping)."; \
-		echo "Install: $(GORELEASER_INSTALL)"; \
-	fi
+release-check: ## Validate GoReleaser config without releasing
+	$(GORELEASER) check
 
 .PHONY: clean
-clean: ## Remove coverage artefacts and clear the Go test cache
+clean: ## Remove generated test and coverage artefacts
 	$(GO) clean -testcache
-	rm -f $(COVERAGE_OUT) $(COVERAGE_HTML)
+	rm -f $(COVER_OUT) $(COVER_HTML)

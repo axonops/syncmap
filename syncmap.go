@@ -1,3 +1,26 @@
+// Copyright 2026 AxonOps Limited.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package syncmap is a type-safe generic wrapper around sync.Map.
+//
+// It mirrors the sync.Map API with compile-time type safety via Go
+// generics, so callers no longer pay the cost of type assertions at
+// every call site. Zero runtime dependencies.
+//
+// A full godoc package overview lands in issue #6 (doc.go); this
+// inline comment exists only to satisfy the revive.package-comments
+// lint rule until then.
 package syncmap
 
 import "sync"

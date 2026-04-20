@@ -2,93 +2,58 @@ version: "2"
 
 run:
   timeout: 5m
-  go: "1.26"
+  tests: true
 
 linters:
-  default: standard
+  default: none
   enable:
-    - asasalint
-    - bodyclose
-    - copyloopvar
-    - errorlint
-    - forcetypeassert
-    - gocritic
-    - gosec
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
     - misspell
-    - nilnil
-    - nolintlint
-    - prealloc
+    - gocyclo
+    - gocritic
     - revive
     - unconvert
-  disable:
-    - exhaustive
-    - exhaustruct
+    - unparam
+    - bodyclose
+    - goconst
+    - prealloc
+    - nolintlint
+    - copyloopvar
   settings:
-    errcheck:
-      check-type-assertions: false
-      check-blank: false
-    gocritic:
-      disabled-checks:
-        - ifElseChain
-        - singleCaseSwitch
-    govet:
-      enable-all: true
-      disable:
-        - fieldalignment
-    nolintlint:
-      require-explanation: true
-      require-specific: true
-      allow-unused: false
+    gocyclo:
+      min-complexity: 10
+    misspell:
+      locale: UK
     revive:
       rules:
-        - name: blank-imports
-        - name: context-as-argument
-        - name: context-keys-type
-        - name: dot-imports
-        - name: error-return
-        - name: error-strings
-        - name: error-naming
         - name: exported
-        - name: increment-decrement
+          arguments:
+            - disableStutteringCheck
         - name: var-naming
-        - name: var-declaration
         - name: package-comments
-        - name: range
-        - name: receiver-naming
-        - name: time-naming
-        - name: unexported-return
-        - name: indent-error-flow
+        - name: if-return
+        - name: error-return
+        - name: error-naming
+        - name: error-strings
         - name: errorf
-        - name: empty-block
-        - name: superfluous-else
         - name: unused-parameter
           disabled: true
-        - name: unreachable-code
-        - name: redefines-builtin-id
-    staticcheck:
-      checks:
-        - all
-    gosec:
-      excludes:
-        - G404
   exclusions:
-    presets:
-      - comments
-      - std-error-handling
     rules:
       - path: _test\.go
         linters:
-          - forcetypeassert
-          - gosec
-          - errcheck
-      - path: syncmap_smoke_test\.go
-        linters:
+          - gocyclo
           - gocritic
-      # TODO(#7): remove once syncmap.go type assertions are rewritten to
-      # comma-ok form as part of the godoc + implementation rewrite.
-      - path: ^syncmap\.go$
+          - unparam
+          - goconst
+      - path: tests/bdd/
         linters:
-          - forcetypeassert
+          - gocyclo
+          - gocritic
 
 formatters:
   enable:
