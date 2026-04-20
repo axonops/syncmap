@@ -357,14 +357,14 @@ func TestKeys(t *testing.T) {
 	})
 }
 
-func TestItems(t *testing.T) {
+func TestValues(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty_is_empty", func(t *testing.T) {
 		t.Parallel()
 		m := &syncmap.SyncMap[string, int]{}
-		items := m.Items()
-		assert.Empty(t, items)
+		values := m.Values()
+		assert.Empty(t, values)
 	})
 
 	t.Run("matches", func(t *testing.T) {
@@ -373,9 +373,9 @@ func TestItems(t *testing.T) {
 		m.Store("a", 1)
 		m.Store("b", 2)
 		m.Store("c", 3)
-		items := m.Items()
-		sort.Ints(items)
-		assert.Equal(t, []int{1, 2, 3}, items)
+		values := m.Values()
+		sort.Ints(values)
+		assert.Equal(t, []int{1, 2, 3}, values)
 	})
 
 	t.Run("length_equals_len", func(t *testing.T) {
@@ -383,7 +383,7 @@ func TestItems(t *testing.T) {
 		m := &syncmap.SyncMap[string, int]{}
 		m.Store("x", 10)
 		m.Store("y", 20)
-		assert.Equal(t, m.Len(), len(m.Items()))
+		assert.Equal(t, m.Len(), len(m.Values()))
 	})
 }
 

@@ -132,7 +132,7 @@ func (m *SyncMap[K, V]) Keys() []K {
 	return keys
 }
 
-// Items returns a slice of all values present in the map at the
+// Values returns a slice of all values present in the map at the
 // moment of the call. It runs in O(n) time.
 //
 // The result is a point-in-time approximation. Concurrent stores and
@@ -140,11 +140,11 @@ func (m *SyncMap[K, V]) Keys() []K {
 // removed, or to omit values that were added during traversal. The
 // order of values is undefined, and does not correspond to the order
 // returned by Keys.
-func (m *SyncMap[K, V]) Items() []V {
-	var items []V
+func (m *SyncMap[K, V]) Values() []V {
+	var values []V
 	m.syncMap.Range(func(key, value any) bool {
-		items = append(items, value.(V))
+		values = append(values, value.(V))
 		return true
 	})
-	return items
+	return values
 }
