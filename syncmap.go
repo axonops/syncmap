@@ -67,6 +67,24 @@ func (m *SyncMap[K, V]) Delete(key K) {
 	m.syncMap.Delete(key)
 }
 
+// Swap replaces the value stored for key with value and returns the
+// previous value, if any. The loaded result reports whether the key
+// was present. If the key was not present, previous is the zero
+// value of V.
+func (m *SyncMap[K, V]) Swap(key K, value V) (previous V, loaded bool) {
+	v, l := m.syncMap.Swap(key, value)
+	if !l {
+		var v2 V
+		return v2, false
+	}
+	return v.(V), l
+}
+
+// Clear removes all entries from the map, leaving it empty.
+func (m *SyncMap[K, V]) Clear() {
+	m.syncMap.Clear()
+}
+
 // CompareAndSwap swaps the old and new values for key if the value
 // currently stored in m is equal to old. The swapped result reports
 // whether the swap was performed.
