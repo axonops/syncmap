@@ -20,6 +20,10 @@ profile.cov
 # GoReleaser snapshot output
 dist/
 
+# bench-regression intermediates (bench.txt is the committed baseline)
+bench-regression.txt
+current.txt
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
