@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.0.0). Must not exist yet; workflow creates it."
+        required: true
+        type: string
+      dry_run:
+        description: "Dry run — build and validate without publishing or tagging."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify quality gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Disallow non-dry release from a non-main ref
+        if: github.ref != 'refs/heads/main' && inputs.dry_run != true
+        run: |
+          echo "::error::Non-dry releases must dispatch from main (got ${{ github.ref }}). Merge to main first, then re-dispatch."
+          exit 1
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version: "1.26"
+          cache: true
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@v0.28.0
+      - name: Install golangci-lint
+        # Install directly so 'make check' can invoke it — the action
+        # tries to 'run' the linter itself which would run lint twice.
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+      - name: Run quality gate
+        run: make check
+      - name: Enforce 95% coverage threshold
+        run: |
+          set -euo pipefail
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}' | tr -d '%')
+          # v1.0.0 will not be cut until #11 raises the test suite past
+          # the 95% target — no TODO loosening needed here, the release
+          # gate stays strict and the release workflow is dispatched
+          # manually after coverage lands.
+          awk -v v="$total" 'BEGIN { exit !(v+0 >= 95) }' || {
+            echo "::error::Coverage ${total}% is below the 95% release threshold."
+            exit 1
+          }
+          echo "Coverage ${total}% meets the 95% release threshold."
+
+  tag:
+    name: Create tag
+    needs: verify
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Validate tag format
+        run: |
+          if [[ ! "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo "Tag must match vMAJOR.MINOR.PATCH[-prerelease]"
+            exit 1
+          fi
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ inputs.tag }}" -m "Release ${{ inputs.tag }}"
+          git push origin "${{ inputs.tag }}"
+
+  goreleaser:
+    name: GoReleaser
+    needs: [verify, tag]
+    if: always() && needs.verify.result == 'success' && (needs.tag.result == 'success' || needs.tag.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # On a real release the tag has just been pushed by the `tag`
+      # job, so we check it out. On a dry run no tag exists yet;
+      # fall back to the workflow's invocation ref so the build runs
+      # against the commit a human operator just validated.
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.dry_run && github.ref || inputs.tag }}
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version: "1.26"
+          cache: true
+      - name: Dry-run GoReleaser
+        if: inputs.dry_run == true
+        uses: goreleaser/goreleaser-action@v7.0.0
+        with:
+          distribution: goreleaser
+          version: v2.7.0
+          args: release --snapshot --clean
+      - name: Publish GoReleaser
+        if: inputs.dry_run != true
+        uses: goreleaser/goreleaser-action@v7.0.0
+        with:
+          distribution: goreleaser
+          version: v2.7.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  proxy-warm:
+    name: Warm Go module proxy
+    needs: goreleaser
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Request module from proxy (with retry)
+        run: |
+          tag="${{ inputs.tag }}"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -sSfL "https://proxy.golang.org/github.com/axonops/syncmap/@v/${tag}.info" | tee /dev/stderr; then
+              exit 0
+            fi
+            echo "proxy not ready, retry ${attempt}/6 in 15s"
+            sleep 15
+          done
+          echo "proxy did not index ${tag} after 90s"
+          exit 1

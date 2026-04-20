@@ -1,43 +1,51 @@
-# Local-only project files
-CLAUDE.md
-claude/
-.issue-drafts/
-
-# Go build artefacts
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+
+# Test binary, built with `go test -c`
 *.test
 
-# Coverage and profile output
+# Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
 
-# Go workspace
+# GoReleaser snapshot output
+dist/
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
 go.work
 go.work.sum
 
-# Environment
+# env file
 .env
 
-# Editor / IDE (commented out — uncomment locally if needed)
+# Editor/IDE
 # .idea/
 # .vscode/
 
-# Build output
-/dist/
-/bin/
-
-# OS: macOS
+# General
 .DS_Store
 .localized
-._*
+__MACOSX/
 .AppleDouble
 .LSOverride
+Icon[]
+
+# Resource forks
+._*
+
+# Files and directories that might appear in the root of a volume
 .DocumentRevisions-V100
 .fseventsd
 .Spotlight-V100
@@ -46,9 +54,44 @@ go.work.sum
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 .com.apple.timemachine.supported
+.PKInstallSandboxManager
+.PKInstallSandboxManager-SystemSoftware
+.hotfiles.btree
+.vol
+.file
+.disk_label*
+lost+found
+.HFS+ Private Directory Data[]
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
 .apdisk
 
-# OS: miscellaneous
-__MACOSX/
-Thumbs.db
-Desktop.ini
+# Mac OS 6 to 9
+Desktop DB
+Desktop DF
+TheFindByContentFolder
+TheVolumeSettingsFolder
+.FBCIndex
+.FBCSemaphoreFile
+.FBCLockFolder
+
+# Quota system
+.quota.group
+.quota.user
+.quota.ops.group
+.quota.ops.user
+
+# TimeMachine
+Backups.backupdb
+.MobileBackups
+.MobileBackups.trash
+MobileBackups.trash
+tmbootpicker.efi
+
+CLAUDE.md
+.claude/
+.issue-drafts/

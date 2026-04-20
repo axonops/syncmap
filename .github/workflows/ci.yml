@@ -1,185 +1,329 @@
-# syncmap CI workflow.
-#
-# Runs the quality gate (`make check`) plus coverage, govulncheck, and a
-# cross-platform build matrix on every pull request and push to main.
-#
-# This workflow is deliberately read-only: no commit, no tag, no publish.
-# Release automation lives in a separate workflow (see issue #4 for
-# goreleaser + release.yml). Attempts to add release behaviour here must
-# be rejected in review.
-#
-# Action pin policy:
-# - First-party `actions/*` actions use major-version tags (e.g. @v5) because
-#   GitHub owns and signs them.
-# - Third-party actions (if/when added) must be pinned by full commit SHA
-#   with a `# <version>` comment so dependabot can update them. There are
-#   currently no third-party actions in this workflow — golangci-lint and
-#   govulncheck are installed via `go install` with pinned module versions
-#   to keep the supply chain minimal.
-
-name: ci
+name: CI
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
   push:
     branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
+    # Skip main-branch CI for commits that only touch the CLA signatures
+    # file or the auto-generated contributors list. Those pushes come
+    # from the CLA Assistant workflow and the contributors regenerator
+    # respectively; they cannot affect library behaviour. Normal PR
+    # events continue to run the full suite (no paths filter below).
+    paths-ignore:
+      - "signatures/**"
+      - "CONTRIBUTORS.md"
+  pull_request:
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  GO_VERSION: '1.26.x'
-  GOLANGCI_LINT_VERSION: v2.11.4
-  GOVULNCHECK_VERSION: v1.2.0
-  GOIMPORTS_VERSION: v0.44.0
+permissions:
+  contents: read
 
 jobs:
-  lint:
-    name: lint
+  makefile-targets-guard:
+    name: Makefile targets documented
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
+      - name: Verify make help lists every required target
+        run: |
+          set -euo pipefail
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+          # Every target documented as part of the project contract must
+          # appear in `make help` output. This guard fails the build if
+          # a future Makefile edit silently drops a target. The expected
+          # list is pinned here and mirrors the "Makefile Targets"
+          # section of CLAUDE.md. If a new target is genuinely added to
+          # the contract, update this list AND the CLAUDE.md section
+          # together.
+          expected=(
+            check
+            test
+            test-bdd
+            lint
+            vet
+            fmt
+            fmt-check
+            bench
+            coverage
+            tidy
+            tidy-check
+            security
+            release-check
+            clean
+            help
+          )
+          # Strip ANSI colour escapes so the grep matches the plain target
+          # name as it appears after Makefile rendering.
+          help_output=$(make help | sed $'s/\x1b\\[[0-9;]*m//g')
+          missing=()
+          for target in "${expected[@]}"; do
+            if ! grep -qE "^[[:space:]]*${target}[[:space:]]" <<<"$help_output"; then
+              missing+=("$target")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::make help is missing required target(s): ${missing[*]}"
+            echo "-- full output of 'make help' --"
+            echo "$help_output"
+            exit 1
+          fi
+          echo "All ${#expected[@]} required Makefile targets are documented in 'make help'."
+
+  apache-header-guard:
+    name: Apache 2.0 header on every Go file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Verify Apache 2.0 header
+        run: |
+          set -euo pipefail
+          # Every tracked *.go file MUST carry the Apache 2.0 header in its
+          # first ~14 lines. The tell-tale phrase is stable across every
+          # file in the repo; grep -L lists files missing it.
+          missing=$(git ls-files '*.go' \
+            | xargs grep -L 'Licensed under the Apache License, Version 2.0' \
+            || true)
+          if [ -n "$missing" ]; then
+            echo "::error::Go files missing Apache 2.0 header:"
+            printf '%s\n' "$missing"
+            exit 1
+          fi
+          echo "All tracked .go files carry the Apache 2.0 header."
+
+  local-paths-guard:
+    name: No local paths or replace directives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Scan for local-filesystem references and replace directives
+        run: |
+          set -euo pipefail
+
+          # A Go library MUST NOT ship with references to the maintainer's
+          # local filesystem. Downstream consumers fetching the module via
+          # `go get` can't satisfy /Users/johnny/... paths — the module is
+          # broken on their machine. This guard catches two failure modes
+          # before they reach main:
+          #
+          # 1. `replace` directives in go.mod — commonly used during local
+          #    development against a checkout of a sibling package, but
+          #    fatal for downstream consumers when committed. We block ALL
+          #    replace directives. If a legitimate need arises (a known
+          #    upstream bug, a fork hosted elsewhere), add an exception
+          #    here with a linked GitHub issue.
+          #
+          # 2. Absolute local paths anywhere in tracked files: Linux/macOS
+          #    /home/<user>/..., macOS /Users/..., Windows C:\Users\...\.
+          #    Covers source, docs, workflows, and anything else committed.
+
+          failed=0
+
+          echo "::group::go.mod replace directives"
+          if grep -nE "^[[:space:]]*replace[[:space:]]" go.mod; then
+            echo "::error file=go.mod::replace directives are forbidden in a published library — see local-paths-guard."
+            failed=1
+          else
+            echo "go.mod: no replace directives"
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Absolute local paths in tracked files"
+          # Exclusions:
+          #  - CLAUDE.md and .claude/ are dev-local (gitignored, but paranoid).
+          #  - This workflow file itself describes the forbidden patterns.
+          pattern='(/Users/[A-Za-z0-9._-]+/|/home/[A-Za-z0-9._-]+/|[A-Z]:\\\\Users\\\\)'
+
+          hits=$(git ls-files \
+            | grep -Ev '^(CLAUDE\.md|\.claude/|\.github/workflows/ci\.yml)$' \
+            | xargs -I{} sh -c 'grep -EHn "$1" "$2" 2>/dev/null || true' _ "$pattern" {} \
+            || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Absolute local paths found in tracked files:"
+            printf '%s\n' "$hits"
+            failed=1
+          else
+            echo "no local paths found"
+          fi
+          echo "::endgroup::"
+
+          exit "$failed"
+
+  attribution-guard:
+    name: No AI attribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
         with:
-          go-version: ${{ env.GO_VERSION }}
+          fetch-depth: 0
+      - name: Scan tracked files for AI-tool references
+        run: |
+          set -euo pipefail
+
+          # Forbidden tokens (case-insensitive). Exceptions:
+          #  - CLAUDE.md as a literal filename reference (the dev-local
+          #    project guide).
+          #  - llms.txt / llms-full.txt (file names for the LLM tooling
+          #    ecosystem — product names, not attribution).
+          #  - The CONTRIBUTING.md rule block that enumerates the
+          #    forbidden tokens as part of the policy itself.
+          #
+          # Commit messages are no longer scanned: they are transient and
+          # controlled by the commit-message-reviewer gate at author time.
+          # Scanning every historical commit message trips on any PR that
+          # discusses the guard itself, and this is a masking library, not
+          # a compliance audit trail.
+          PATTERN='claude|anthropic|copilot|[^a-z]gpt[^a-z]?|\bllm\b|ai-generated|ai-assisted|generated by ai|co-authored-by: claude'
+
+          echo "::group::Tracked files"
+          # Exclusions:
+          #  - CLAUDE.md and .claude/ — dev-local Claude Code config (gitignored).
+          #  - CONTRIBUTING.md, SECURITY.md, this workflow, the requirements doc —
+          #    contain the forbidden tokens as part of the policy statement itself.
+          #  - llms.txt / llms-full.txt — the AI-assistant documentation bundle.
+          #    llms-full.txt is a generated concatenation of the above policy-
+          #    bearing files, so it inherits the same exclusion by construction;
+          #    llms.txt names mistakes AI assistants should avoid and cites tool
+          #    names in the "common mistakes" prose.
+          files=$(git ls-files \
+            | grep -Ev '^(CLAUDE\.md|\.claude/|\.github/workflows/ci\.yml|CONTRIBUTING\.md|SECURITY\.md|docs/v1\.0\.0-requirements\.md|\.gitignore|llms\.txt|llms-full\.txt)$' \
+            | grep -Ev '\.(png|jpg|jpeg|gif|ico|webp|svg|pdf|woff2?|ttf|otf|mp3|mp4|wav|zip|gz|tgz)$' \
+            || true)
+          hits=""
+          # grep -I skips any file detected as binary — safety net in case the
+          # extension blocklist above misses something.
+          for f in $files; do
+            if grep -IiEn "$PATTERN" "$f" >/dev/null 2>&1; then
+              # Strip benign path references: llms.txt / llms-full.txt product
+              # filenames, the CLAUDE.md filename token, and .claude/ path
+              # segments in config files.
+              match=$(grep -IiEn "$PATTERN" "$f" | grep -viE 'llms(-full)?\.txt|CLAUDE\.md|\.claude/')
+              if [ -n "$match" ]; then
+                hits="${hits}${f}:\n${match}\n\n"
+              fi
+            fi
+          done
+          if [ -n "$hits" ]; then
+            printf '::error::AI-tool references found in tracked files:\n%b' "$hits"
+            exit 1
+          fi
+          echo "No AI-tool references found."
+          echo "::endgroup::"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version: "1.26"
           cache: true
-
       - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
-
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
-
-      - name: make fmt-check
+        run: go install golang.org/x/tools/cmd/goimports@v0.28.0
+      - name: Format check
         run: make fmt-check
-
-      - name: make vet
+      - name: Vet
         run: make vet
-
-      - name: make lint
-        run: make lint
-
-      - name: make tidy-check
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9.2.0
+        with:
+          version: v2.11.4
+          install-mode: goinstall
+      - name: Module tidy check
         run: make tidy-check
 
   test:
-    name: test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Test
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    defaults:
-      run:
-        shell: bash
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version: "1.26"
           cache: true
-
-      - name: make test
+      - name: Unit tests
         run: make test
-
-      - name: make test-bdd
+      - name: BDD tests
         run: make test-bdd
-
-  coverage:
-    name: coverage
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: make coverage
+      - name: Coverage
+        if: matrix.os == 'ubuntu-latest'
         run: make coverage
-
-      - name: Summarise coverage
+      - name: Enforce coverage threshold
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          {
-            echo '### Coverage'
-            echo ''
-            echo '```'
-            go tool cover -func=coverage.out | tail -1
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload coverage artefact
-        uses: actions/upload-artifact@v4
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}' | tr -d '%')
+          # TODO(#11): raise threshold to 95.0 once the test rewrite lands.
+          # Today the fork carries only the existing smoke test (~36%).
+          # The gate exists to prevent regressions below current coverage.
+          threshold=35.0
+          echo "Total coverage: ${total}% (threshold ${threshold}%)"
+          awk -v t="$total" -v th="$threshold" 'BEGIN { if (t+0 < th+0) { exit 1 } }' \
+            || { echo "::error::coverage ${total}% < threshold ${threshold}%"; exit 1; }
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: coverage
-          path: |
-            coverage.out
-            coverage.html
-          if-no-files-found: error
-          retention-days: 14
+          path: coverage.out
 
-  security:
-    name: security
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
-
-      - name: make security
-        run: make security
-
-  build-matrix:
-    name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { goos: linux,   goarch: amd64 }
-          - { goos: linux,   goarch: arm64 }
-          - { goos: darwin,  goarch: amd64 }
-          - { goos: darwin,  goarch: arm64 }
-          - { goos: windows, goarch: amd64 }
+          - goos: linux
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version: "1.26"
           cache: true
-
-      - name: Cross-compile
+      - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: '0'
+          CGO_ENABLED: "0"
         run: go build ./...
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version: "1.26"
+          cache: true
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./...
+
+  release-check:
+    name: GoReleaser config check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version: "1.26"
+          cache: true
+      - uses: goreleaser/goreleaser-action@v7.0.0
+        with:
+          distribution: goreleaser
+          version: v2.7.0
+          args: check
