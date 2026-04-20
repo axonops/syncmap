@@ -1,0 +1,185 @@
+# syncmap CI workflow.
+#
+# Runs the quality gate (`make check`) plus coverage, govulncheck, and a
+# cross-platform build matrix on every pull request and push to main.
+#
+# This workflow is deliberately read-only: no commit, no tag, no publish.
+# Release automation lives in a separate workflow (see issue #4 for
+# goreleaser + release.yml). Attempts to add release behaviour here must
+# be rejected in review.
+#
+# Action pin policy:
+# - First-party `actions/*` actions use major-version tags (e.g. @v5) because
+#   GitHub owns and signs them.
+# - Third-party actions (if/when added) must be pinned by full commit SHA
+#   with a `# <version>` comment so dependabot can update them. There are
+#   currently no third-party actions in this workflow — golangci-lint and
+#   govulncheck are installed via `go install` with pinned module versions
+#   to keep the supply chain minimal.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.26.x'
+  GOLANGCI_LINT_VERSION: v2.11.4
+  GOVULNCHECK_VERSION: v1.2.0
+  GOIMPORTS_VERSION: v0.44.0
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
+
+      - name: make fmt-check
+        run: make fmt-check
+
+      - name: make vet
+        run: make vet
+
+      - name: make lint
+        run: make lint
+
+      - name: make tidy-check
+        run: make tidy-check
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: make test
+        run: make test
+
+      - name: make test-bdd
+        run: make test-bdd
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: make coverage
+        run: make coverage
+
+      - name: Summarise coverage
+        run: |
+          {
+            echo '### Coverage'
+            echo ''
+            echo '```'
+            go tool cover -func=coverage.out | tail -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.html
+          if-no-files-found: error
+          retention-days: 14
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
+
+      - name: make security
+        run: make security
+
+  build-matrix:
+    name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64 }
+          - { goos: linux,   goarch: arm64 }
+          - { goos: darwin,  goarch: amd64 }
+          - { goos: darwin,  goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Cross-compile
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: go build ./...
