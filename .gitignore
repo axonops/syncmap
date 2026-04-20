@@ -1,0 +1,54 @@
+# Local-only project files
+CLAUDE.md
+claude/
+.issue-drafts/
+
+# Go build artefacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Coverage and profile output
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Go workspace
+go.work
+go.work.sum
+
+# Environment
+.env
+
+# Editor / IDE (commented out — uncomment locally if needed)
+# .idea/
+# .vscode/
+
+# Build output
+/dist/
+/bin/
+
+# OS: macOS
+.DS_Store
+.localized
+._*
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.com.apple.timemachine.supported
+.apdisk
+
+# OS: miscellaneous
+__MACOSX/
+Thumbs.db
+Desktop.ini
