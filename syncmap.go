@@ -67,6 +67,34 @@ func (m *SyncMap[K, V]) Delete(key K) {
 	m.syncMap.Delete(key)
 }
 
+// CompareAndSwap swaps the old and new values for key if the value
+// currently stored in m is equal to old. The swapped result reports
+// whether the swap was performed.
+//
+// V must be comparable. Because SyncMap is declared with V any to
+// support non-comparable value types, this operation cannot be a
+// method on SyncMap[K, V]; instantiating it with a non-comparable V
+// (slice, map, func, or a struct containing one of those) produces a
+// compile-time error rather than the runtime panic that the
+// underlying [sync.Map.CompareAndSwap] would raise.
+//
+// If V is itself an interface type, the comparison performed inside
+// [sync.Map] can still panic at runtime when either operand's dynamic
+// type is not comparable. This matches Go's `==` semantics for
+// interfaces and is outside this wrapper's control.
+func CompareAndSwap[K, V comparable](m *SyncMap[K, V], key K, old, new V) (swapped bool) {
+	return m.syncMap.CompareAndSwap(key, old, new)
+}
+
+// CompareAndDelete deletes the entry for key if its current value is
+// equal to old. The deleted result reports whether the entry was
+// removed.
+//
+// V must be comparable, for the same reason as [CompareAndSwap].
+func CompareAndDelete[K, V comparable](m *SyncMap[K, V], key K, old V) (deleted bool) {
+	return m.syncMap.CompareAndDelete(key, old)
+}
+
 // Range calls f sequentially for each key and value present in the
 // map. If f returns false, Range stops iteration.
 //

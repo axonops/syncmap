@@ -548,3 +548,133 @@ func TestDeleteDuringRange(t *testing.T) {
 
 	wg.Wait()
 }
+
+// Note: the following would intentionally fail to compile and is
+// retained as documentation — CompareAndSwap / CompareAndDelete
+// require V to be comparable.
+//
+//	var m syncmap.SyncMap[string, []byte]
+//	_ = syncmap.CompareAndSwap(&m, "k", nil, nil) // []byte is not comparable
+
+func TestCompareAndSwap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("match_swaps_returns_true", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 10)
+		swapped := syncmap.CompareAndSwap(m, "k", 10, 20)
+		assert.True(t, swapped)
+		v, ok := m.Load("k")
+		require.True(t, ok)
+		assert.Equal(t, 20, v)
+	})
+
+	t.Run("mismatch_no_swap_returns_false", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 10)
+		swapped := syncmap.CompareAndSwap(m, "k", 99, 20)
+		assert.False(t, swapped)
+		v, ok := m.Load("k")
+		require.True(t, ok)
+		assert.Equal(t, 10, v)
+	})
+
+	t.Run("missing_key_returns_false", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		swapped := syncmap.CompareAndSwap(m, "absent", 0, 1)
+		assert.False(t, swapped)
+		_, ok := m.Load("absent")
+		assert.False(t, ok)
+	})
+
+	t.Run("zero_V_match_works", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 0)
+		swapped := syncmap.CompareAndSwap(m, "k", 0, 1)
+		assert.True(t, swapped)
+		v, ok := m.Load("k")
+		require.True(t, ok)
+		assert.Equal(t, 1, v)
+	})
+}
+
+func TestCompareAndDelete(t *testing.T) {
+	t.Parallel()
+
+	t.Run("match_deletes_returns_true", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 10)
+		deleted := syncmap.CompareAndDelete(m, "k", 10)
+		assert.True(t, deleted)
+		_, ok := m.Load("k")
+		assert.False(t, ok)
+	})
+
+	t.Run("mismatch_no_delete_returns_false", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 10)
+		deleted := syncmap.CompareAndDelete(m, "k", 99)
+		assert.False(t, deleted)
+		v, ok := m.Load("k")
+		require.True(t, ok)
+		assert.Equal(t, 10, v)
+	})
+
+	t.Run("missing_key_returns_false", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		deleted := syncmap.CompareAndDelete(m, "absent", 0)
+		assert.False(t, deleted)
+	})
+
+	t.Run("zero_V_match_works", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 0)
+		deleted := syncmap.CompareAndDelete(m, "k", 0)
+		assert.True(t, deleted)
+		_, ok := m.Load("k")
+		assert.False(t, ok)
+	})
+}
+
+func TestCompareAndSwapContention(t *testing.T) {
+	t.Parallel()
+
+	const goroutines = 100
+
+	m := &syncmap.SyncMap[string, int]{}
+	m.Store("contended", 0)
+
+	var wg sync.WaitGroup
+	var successCount atomic.Int32
+	var winnerID atomic.Int32
+
+	// ids start at 1 so 0 (the initial stored value) is never a valid
+	// winner id — preserves the "exactly one winner" invariant
+	// unambiguously.
+	for i := 1; i <= goroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			if syncmap.CompareAndSwap(m, "contended", 0, id) {
+				successCount.Add(1)
+				winnerID.Store(int32(id))
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, int32(1), successCount.Load(), "exactly one goroutine should win the CAS")
+
+	finalVal, ok := m.Load("contended")
+	require.True(t, ok)
+	assert.Equal(t, int(winnerID.Load()), finalVal, "stored value must match the winning goroutine's id")
+}
