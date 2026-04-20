@@ -678,3 +678,108 @@ func TestCompareAndSwapContention(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, int(winnerID.Load()), finalVal, "stored value must match the winning goroutine's id")
 }
+
+func TestSwap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("absent_returns_zero_V_loaded_false_and_stores", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		previous, loaded := m.Swap("k", 42)
+		assert.False(t, loaded)
+		assert.Zero(t, previous)
+		v, ok := m.Load("k")
+		require.True(t, ok)
+		assert.Equal(t, 42, v)
+	})
+
+	t.Run("present_returns_old_loaded_true_and_overwrites", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 10)
+		previous, loaded := m.Swap("k", 20)
+		assert.True(t, loaded)
+		assert.Equal(t, 10, previous)
+		v, ok := m.Load("k")
+		require.True(t, ok)
+		assert.Equal(t, 20, v)
+	})
+
+	t.Run("zero_V_distinguished_from_absent", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 0)
+		previous, loaded := m.Swap("k", 1)
+		assert.True(t, loaded)
+		assert.Equal(t, 0, previous)
+	})
+}
+
+func TestClear(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty_map_noop", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		assert.NotPanics(t, func() { m.Clear() })
+		assert.Equal(t, 0, m.Len())
+	})
+
+	t.Run("populated_map_becomes_empty", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("a", 1)
+		m.Store("b", 2)
+		m.Store("c", 3)
+		require.Equal(t, 3, m.Len())
+		m.Clear()
+		assert.Equal(t, 0, m.Len())
+		_, ok := m.Load("a")
+		assert.False(t, ok)
+	})
+
+	t.Run("subsequent_Store_works", func(t *testing.T) {
+		t.Parallel()
+		m := &syncmap.SyncMap[string, int]{}
+		m.Store("k", 1)
+		m.Clear()
+		m.Store("k", 2)
+		v, ok := m.Load("k")
+		require.True(t, ok)
+		assert.Equal(t, 2, v)
+		assert.Equal(t, 1, m.Len())
+	})
+}
+
+func TestSwapContention(t *testing.T) {
+	t.Parallel()
+
+	const goroutines = 100
+
+	m := &syncmap.SyncMap[string, int]{}
+	var wg sync.WaitGroup
+	var firstStores atomic.Int32
+
+	// Exactly one goroutine should see loaded=false (the first writer);
+	// the remaining 99 should all see loaded=true on a fresh key.
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			_, loaded := m.Swap("contended", id)
+			if !loaded {
+				firstStores.Add(1)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, int32(1), firstStores.Load(), "exactly one Swap should observe loaded=false on a fresh key")
+
+	// All goroutines wrote to the same key, so Len() is 1 and the
+	// stored value is one of the goroutine ids.
+	_, ok := m.Load("contended")
+	assert.True(t, ok)
+	assert.Equal(t, 1, m.Len())
+}
