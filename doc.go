@@ -27,7 +27,7 @@
 // operations — Load, Store, LoadOrStore, LoadAndDelete, Delete, and
 // Range — with identical semantics and the same concurrency
 // guarantees. Four convenience methods are added on top: Len, Map,
-// Keys, and Items. The underlying sync.Map is not exported; use the
+// Keys, and Values. The underlying sync.Map is not exported; use the
 // typed methods exclusively.
 //
 // # When to use SyncMap
