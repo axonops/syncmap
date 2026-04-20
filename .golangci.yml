@@ -1,0 +1,106 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.26"
+
+linters:
+  default: standard
+  enable:
+    - asasalint
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - forcetypeassert
+    - gocritic
+    - gosec
+    - misspell
+    - nilnil
+    - nolintlint
+    - prealloc
+    - revive
+    - unconvert
+  disable:
+    - exhaustive
+    - exhaustruct
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+        - singleCaseSwitch
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+          disabled: true
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    staticcheck:
+      checks:
+        - all
+    gosec:
+      excludes:
+        - G404
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - forcetypeassert
+          - gosec
+          - errcheck
+      - path: syncmap_smoke_test\.go
+        linters:
+          - gocritic
+      # TODO(#7): remove once syncmap.go type assertions are rewritten to
+      # comma-ok form as part of the godoc + implementation rewrite.
+      - path: ^syncmap\.go$
+        linters:
+          - forcetypeassert
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/axonops/syncmap
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
