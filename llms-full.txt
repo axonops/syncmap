@@ -145,9 +145,11 @@ And a bad fit when:
 
 <div align="center">
 
+  <img src=".github/images/logo-readme.png" alt="syncmap" width="128">
+
   # syncmap
 
-  **Type-safe generic wrapper around Go's `sync.Map` — zero dependencies, zero assertion cost at the call site.**
+  **AxonOps-packaged fork of `rgooding/go-syncmap` — a type-safe generic wrapper around Go's `sync.Map`.**
 
   [![CI](https://github.com/axonops/syncmap/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/axonops/syncmap/actions/workflows/ci.yml)
   [![Go Reference](https://pkg.go.dev/badge/github.com/axonops/syncmap.svg)](https://pkg.go.dev/github.com/axonops/syncmap)
@@ -163,9 +165,9 @@ And a bad fit when:
 
 **Table of contents**
 
+- [🌱 About this fork](#-about-this-fork)
 - [✅ Status](#-status)
 - [🔍 Overview](#-overview)
-- [✨ Why `syncmap`?](#-why-syncmap)
 - [🚀 Quick Start](#-quick-start)
 - [📖 API Reference](#-api-reference)
 - [🧵 Thread Safety](#-thread-safety)
@@ -178,6 +180,14 @@ And a bad fit when:
 - [📄 Licence](#-licence)
 
 ---
+
+## 🌱 About this fork
+
+This repository is a **fork** of [`github.com/rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap), the original type-safe generic wrapper around `sync.Map` written by [Richard Gooding](https://github.com/rgooding). It is **not a rewrite**: the library's ideas, shape, and implementation are Richard's work, and the upstream project is fully usable and recommended for anyone who does not need the AxonOps-specific packaging.
+
+AxonOps forks it only so the library can be consumed under our standard engineering controls — reproducible release workflow, signed releases, CI quality gates, security scanning, CLA governance, and audit-friendly documentation. If you don't need any of that, please use the upstream at `github.com/rgooding/go-syncmap` instead. We carry Richard's copyright notice and credit forward in [`NOTICE`](./NOTICE) and aim to track upstream where practical.
+
+Library behaviour is unchanged from upstream. The small set of additions and the one rename (to match the stdlib `maps.Values` naming) are enumerated in [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## ✅ Status
 
@@ -193,15 +203,6 @@ m.Store("hits", 1)
 v, ok := m.Load("hits")
 // v is an int, not interface{}. No `.(int)` at the call site.
 ```
-
-## ✨ Why `syncmap`?
-
-- **Compile-time type safety.** `SyncMap[K comparable, V any]` is fully generic. `Load`, `Store`, `Range`, and friends accept and return your types directly.
-- **Zero runtime dependencies.** Stdlib only. No goroutines spawned by the library. No transitive dependency CVEs to track.
-- **Stdlib-parity semantics.** Every method maps one-to-one to a `sync.Map` method. `Load` on a missing key returns the typed zero value of `V` and `ok=false`, matching the stdlib contract.
-- **The full modern API.** `Swap` (Go 1.20), `Clear` (Go 1.23), plus `CompareAndSwap` / `CompareAndDelete` as package-level generic functions that reject non-comparable `V` at **compile time** instead of the stdlib's runtime panic.
-- **Convenience helpers** beyond `sync.Map`: `Len`, `Map`, `Keys`, `Values`. Each is documented as `O(n)` and a point-in-time approximation — no surprises.
-- **Race-clean under scrutiny.** The suite runs with `-race`, `goleak.VerifyTestMain`, 100 % line coverage, 37 BDD scenarios, 2 fuzz targets, and a benchstat regression gate in CI.
 
 ## 🚀 Quick Start
 
@@ -316,7 +317,7 @@ Report suspected vulnerabilities privately to **oss@axonops.com**. Do not open a
 
 ## 📜 Attribution
 
-This project is a fork of [`github.com/rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap) by Robert Gooding, originally released under Apache 2.0. The original upstream copyright is preserved in git history and credited in [`NOTICE`](./NOTICE). Every change from the fork is enumerated in [`CHANGELOG.md`](./CHANGELOG.md).
+This project is a fork of [`github.com/rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap) by Richard Gooding, distributed under Apache 2.0; this fork continues under the same licence. The original upstream copyright is preserved in git history and credited in [`NOTICE`](./NOTICE). Every change from the fork is enumerated in [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## 📄 Licence
 
@@ -599,7 +600,7 @@ version before rolling to production.
 
 ## [1.0.0] — 2026-04-21
 
-Initial AxonOps release. Forked from [`github.com/rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap) by Robert Gooding and rebuilt to AxonOps library standards — new module path, expanded API, comprehensive tests, CI/CD, and documentation.
+Initial AxonOps release. Forked from [`github.com/rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap) by Richard Gooding so the library can be consumed under AxonOps engineering controls — reproducible release workflow, signed releases, CI quality gates, security scanning, and CLA governance. The upstream project is fully usable on its own; this fork exists only to package it for AxonOps. Library behaviour is unchanged apart from a handful of small API additions tracked below.
 
 ### Added
 
@@ -618,7 +619,7 @@ Initial AxonOps release. Forked from [`github.com/rgooding/go-syncmap`](https://
 - **Release workflow** (`.github/workflows/release.yml`): `workflow_dispatch` only; verifies, tags, publishes via GoReleaser, warms the Go module proxy. Local tag creation is forbidden.
 - **Dependabot** configuration with weekly updates and auto-merge for patch-level test dependencies.
 - **LLM documentation bundle**: `llms.txt` (concise summary) and `llms-full.txt` (concatenated corpus) for AI-assistant ingestion, with a CI guard that fails the build on drift.
-- `LICENSE` (Apache 2.0, preserved from upstream), `NOTICE` (crediting Robert Gooding as the upstream author), `SECURITY.md`.
+- `LICENSE` (Apache 2.0, preserved from upstream), `NOTICE` (crediting Richard Gooding as the upstream author), `SECURITY.md`.
 
 ### Changed
 
@@ -631,7 +632,7 @@ Initial AxonOps release. Forked from [`github.com/rgooding/go-syncmap`](https://
 
 ### Attribution
 
-This release is a fork of [`github.com/rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap) by Robert Gooding, which is distributed under Apache 2.0; this fork continues under the same licence. The original upstream copyright is preserved in git history and credited in `NOTICE`.
+This release is a fork of [`github.com/rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap) by Richard Gooding, which is distributed under Apache 2.0; this fork continues under the same licence. The original upstream copyright is preserved in git history and credited in `NOTICE`.
 
 [Unreleased]: https://github.com/axonops/syncmap/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/axonops/syncmap/releases/tag/v1.0.0
