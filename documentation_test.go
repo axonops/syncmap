@@ -296,8 +296,8 @@ func TestGovernance_SecurityPolicyExists(t *testing.T) {
 	require.NoError(t, err, "SECURITY.md must exist at the repo root")
 
 	s := string(body)
-	assert.Contains(t, s, "oss@axonops.com",
-		"SECURITY.md must carry the AxonOps oss@axonops.com reporting contact")
+	assert.Contains(t, s, "security/advisories/new",
+		"SECURITY.md must link to GitHub's private-advisory reporting flow")
 	assert.Contains(t, s, "Supported versions",
 		"SECURITY.md must document supported versions")
 }

@@ -168,7 +168,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the branching model, commit messa
 
 ## 🔐 Security
 
-Report suspected vulnerabilities privately to **oss@axonops.com**. Do not open a public issue. See [`SECURITY.md`](./SECURITY.md) for the full policy, supported-version table, and threat model.
+Do not open a public issue for a suspected vulnerability. Use GitHub's private advisory flow — [**Report a vulnerability**](https://github.com/axonops/syncmap/security/advisories/new) — which creates a private channel between you and the maintainers. See [`SECURITY.md`](./SECURITY.md) for the full policy, supported-version table, and threat model.
 
 ## 📜 Attribution
 
