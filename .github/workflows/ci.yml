@@ -53,6 +53,8 @@ jobs:
             tidy-check
             security
             release-check
+            llms-full
+            llms-full-check
             clean
             help
           )
@@ -152,6 +154,30 @@ jobs:
 
           exit "$failed"
 
+  llms-full-up-to-date:
+    name: llms-full.txt is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version: "1.26"
+          cache: true
+      - name: Regenerate and diff
+        run: make llms-full-check
+
+  markdownlint:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: DavidAnson/markdownlint-cli2-action@v21.0.0
+        with:
+          globs: |
+            README.md
+            SECURITY.md
+            CHANGELOG.md
+
   bdd-strict-mode-guard:
     name: BDD strict mode guard
     runs-on: ubuntu-latest
@@ -250,8 +276,11 @@ jobs:
             if grep -IiEn "$PATTERN" "$f" >/dev/null 2>&1; then
               # Strip benign path references: llms.txt / llms-full.txt product
               # filenames, the CLAUDE.md filename token, and .claude/ path
-              # segments in config files.
-              match=$(grep -IiEn "$PATTERN" "$f" | grep -viE 'llms(-full)?\.txt|CLAUDE\.md|\.claude/')
+              # segments in config files. The trailing `|| true` keeps the
+              # pipeline exit code at 0 when the filter removes every matched
+              # line (otherwise pipefail + set -e abort the script before the
+              # `::error::` line has a chance to print the accumulated hits).
+              match=$(grep -IiEn "$PATTERN" "$f" | { grep -viE 'llms(-full)?\.txt|CLAUDE\.md|\.claude/' || true; })
               if [ -n "$match" ]; then
                 hits="${hits}${f}:\n${match}\n\n"
               fi
