@@ -5,16 +5,19 @@ project_name: syncmap
 builds:
   - skip: true
 
-archives:
-  - id: source
-    formats:
-      - tar.gz
-    files:
-      - LICENSE
-      - README.md
+# No Go binaries are built (pure library), so the only release artefact
+# is the source tarball emitted by the `source` stanza below. The
+# `archives:` block is intentionally empty — it needs a build context,
+# which we don't have, so it would produce nothing and break the
+# `actions/attest-build-provenance` step that globs dist/*.tar.gz.
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}-{{ .Version }}-source"
+  format: tar.gz
 
 checksum:
   name_template: "checksums.txt"
+  algorithm: sha256
 
 snapshot:
   version_template: "{{ .Tag }}-SNAPSHOT-{{ .ShortCommit }}"
