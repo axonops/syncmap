@@ -4,7 +4,7 @@
 
   # syncmap
 
-  **AxonOps-packaged fork of `rgooding/go-syncmap` — a type-safe generic wrapper around Go's `sync.Map`.**
+  **AxonOps-packaged fork of [`rgooding/go-syncmap`](https://github.com/rgooding/go-syncmap) — a type-safe generic wrapper around Go's `sync.Map`.**
 
   [![CI](https://github.com/axonops/syncmap/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/axonops/syncmap/actions/workflows/ci.yml)
   [![Go Reference](https://pkg.go.dev/badge/github.com/axonops/syncmap.svg)](https://pkg.go.dev/github.com/axonops/syncmap)
