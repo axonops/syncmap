@@ -62,6 +62,7 @@ func TestLLMs_FullTxtExists_AndIncludesSpecifiedSections(t *testing.T) {
 		"# llms.txt",
 		"# README.md",
 		"# Package godoc (doc.go)",
+		"# CONTRIBUTING.md",
 		"# SECURITY.md",
 		"# CHANGELOG.md",
 		"# Full godoc reference (go doc -all)",
@@ -299,6 +300,127 @@ func TestGovernance_SecurityPolicyExists(t *testing.T) {
 		"SECURITY.md must carry the AxonOps oss@axonops.com reporting contact")
 	assert.Contains(t, s, "Supported versions",
 		"SECURITY.md must document supported versions")
+}
+
+// TestGovernance_ContributingExists asserts CONTRIBUTING.md is present
+// and carries the load-bearing policy sections.
+func TestGovernance_ContributingExists(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile("CONTRIBUTING.md")
+	require.NoError(t, err, "CONTRIBUTING.md must exist at the repo root")
+
+	s := string(body)
+	for _, section := range []string{
+		"Contributor License Agreement",
+		"Code of Conduct",
+		"Attribution policy",
+		"Branching and commits",
+		"Test requirements",
+		"Releases",
+	} {
+		assert.Contains(t, s, section, "CONTRIBUTING.md must contain %q", section)
+	}
+}
+
+// TestGovernance_CLADocumentExists asserts CLA.md is present and
+// carries the legally load-bearing sections.
+func TestGovernance_CLADocumentExists(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile("CLA.md")
+	require.NoError(t, err, "CLA.md must exist at the repo root")
+
+	s := string(body)
+	for _, section := range []string{
+		"Grant of copyright licence",
+		"Grant of patent licence",
+		"Representations",
+		"AxonOps",
+	} {
+		assert.Contains(t, s, section, "CLA.md must contain %q", section)
+	}
+}
+
+// TestGovernance_CodeOfConductExists asserts CODE_OF_CONDUCT.md is
+// present, is derived from the Contributor Covenant, and carries the
+// AxonOps enforcement contact.
+func TestGovernance_CodeOfConductExists(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile("CODE_OF_CONDUCT.md")
+	require.NoError(t, err, "CODE_OF_CONDUCT.md must exist at the repo root")
+
+	s := string(body)
+	assert.Contains(t, s, "Contributor Covenant",
+		"CODE_OF_CONDUCT.md must be derived from the Contributor Covenant")
+	assert.Contains(t, s, "oss@axonops.com",
+		"CODE_OF_CONDUCT.md must carry the AxonOps enforcement contact")
+	assert.NotContains(t, s, "[INSERT CONTACT METHOD]",
+		"CODE_OF_CONDUCT.md must have the contact placeholder filled in")
+}
+
+// TestGovernance_CLAWorkflowExists asserts the CLA Assistant workflow
+// is present and points at the syncmap repository.
+func TestGovernance_CLAWorkflowExists(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile(".github/workflows/cla.yml")
+	require.NoError(t, err, ".github/workflows/cla.yml must exist")
+
+	s := string(body)
+	assert.Contains(t, s, "axonops/syncmap",
+		"cla.yml must reference this repository (not a mask copy-paste)")
+	assert.Contains(t, s, "CLA_ASSISTANT_PAT",
+		"cla.yml must wire the CLA_ASSISTANT_PAT secret for branch-protection bypass")
+	assert.NotContains(t, s, "axonops/mask",
+		"cla.yml must not reference axonops/mask (adapt repo-specific values)")
+}
+
+// TestGovernance_ContributorsWorkflowExists asserts the contributors
+// regeneration workflow is present.
+func TestGovernance_ContributorsWorkflowExists(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile(".github/workflows/contributors.yml")
+	require.NoError(t, err, ".github/workflows/contributors.yml must exist")
+
+	s := string(body)
+	assert.Contains(t, s, "signatures/version1/cla.json",
+		"contributors.yml must trigger on the CLA signatures file")
+	assert.Contains(t, s, "scripts/generate-contributors.sh",
+		"contributors.yml must invoke the generator script")
+}
+
+// TestGovernance_ContributorsFileIsGenerated asserts CONTRIBUTORS.md
+// matches the output of the generator script (i.e. nobody has
+// hand-edited it).
+func TestGovernance_ContributorsFileIsGenerated(t *testing.T) {
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Skipf("jq not on PATH: %v", err)
+	}
+	t.Parallel()
+
+	committed, err := os.ReadFile("CONTRIBUTORS.md")
+	require.NoError(t, err, "CONTRIBUTORS.md must exist")
+
+	tmpOut := filepath.Join(t.TempDir(), "CONTRIBUTORS.md")
+	cmd := exec.Command("./scripts/generate-contributors.sh",
+		"signatures/version1/cla.json", tmpOut)
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Run(), "generate-contributors.sh must exit 0")
+
+	regenerated, err := os.ReadFile(tmpOut)
+	require.NoError(t, err)
+	assert.Equal(t, string(committed), string(regenerated),
+		"CONTRIBUTORS.md drift — run 'scripts/generate-contributors.sh' and commit the result")
+}
+
+// TestGovernance_SignaturesFileIsValid asserts the signatures file
+// exists, is valid JSON, and carries the expected schema skeleton.
+func TestGovernance_SignaturesFileIsValid(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile("signatures/version1/cla.json")
+	require.NoError(t, err, "signatures/version1/cla.json must exist")
+
+	s := string(body)
+	assert.Contains(t, s, "signedContributors",
+		"signatures/version1/cla.json must carry the signedContributors key")
 }
 
 // TestGovernance_ChangelogHasV1Entry asserts CHANGELOG.md is present

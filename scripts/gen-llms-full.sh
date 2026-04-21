@@ -12,12 +12,10 @@
 #   1. llms.txt
 #   2. README.md
 #   3. doc.go (package comment only)
-#   4. SECURITY.md
-#   5. CHANGELOG.md
-#   6. go doc -all github.com/axonops/syncmap
-#
-# CONTRIBUTING.md, CODE_OF_CONDUCT.md, CLA.md, and CONTRIBUTORS.md are
-# added to this list by issue #18 when they land.
+#   4. CONTRIBUTING.md
+#   5. SECURITY.md
+#   6. CHANGELOG.md
+#   7. go doc -all github.com/axonops/syncmap
 
 set -euo pipefail
 
@@ -72,6 +70,7 @@ section() {
 section "llms.txt" "llms.txt"
 section "README.md" "README.md"
 section "Package godoc (doc.go)" "doc.go-comment"
+section "CONTRIBUTING.md" "CONTRIBUTING.md"
 section "SECURITY.md" "SECURITY.md"
 section "CHANGELOG.md" "CHANGELOG.md"
 section "Full godoc reference (go doc -all)" "godoc"

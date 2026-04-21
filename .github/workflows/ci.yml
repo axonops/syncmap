@@ -177,6 +177,10 @@ jobs:
             README.md
             SECURITY.md
             CHANGELOG.md
+            CONTRIBUTING.md
+            CLA.md
+            CODE_OF_CONDUCT.md
+            CONTRIBUTORS.md
 
   bdd-strict-mode-guard:
     name: BDD strict mode guard
