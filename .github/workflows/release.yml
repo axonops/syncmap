@@ -91,6 +91,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       # On a real release the tag has just been pushed by the `tag`
       # job, so we check it out. On a dry run no tag exists yet;
@@ -120,6 +122,15 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest build provenance
+        if: inputs.dry_run != true
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
 
   proxy-warm:
     name: Warm Go module proxy

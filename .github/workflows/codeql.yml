@@ -1,0 +1,77 @@
+name: CodeQL
+
+# GitHub's free security scanner for Go source. Runs on every PR
+# against main, on every push to main, and on a weekly schedule so
+# newly-disclosed query rules catch any drift in the committed tree.
+#
+# Free on public repositories; no billing impact.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "signatures/**"
+      - "CONTRIBUTORS.md"
+      - "**.md"
+      - ".github/images/**"
+      - "llms.txt"
+      - "llms-full.txt"
+      - "bench.txt"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "signatures/**"
+      - "CONTRIBUTORS.md"
+      - "**.md"
+      - ".github/images/**"
+      - "llms.txt"
+      - "llms-full.txt"
+      - "bench.txt"
+  schedule:
+    # Mondays 06:17 UTC — off the hour to avoid queueing with every
+    # other repo that schedules on :00.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: autobuild
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # `security-and-quality` runs the standard security queries
+          # plus maintainability checks. Small library, zero runtime
+          # deps — the extra rules have negligible runtime cost.
+          queries: security-and-quality
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
