@@ -7,4 +7,12 @@ Agreement](./CLA.md) and contributed to `github.com/axonops/syncmap`.
 > by `.github/workflows/contributors.yml` every time a new signature
 > lands. Do not edit it by hand — edits are overwritten.
 
-_No contributors have signed yet. Be the first — open a pull request._
+## Signatories
+
+| Contributor | GitHub | Signed (UTC) | First PR |
+|---|---|---|---|
+| Johnny Miller | [@millerjp](https://github.com/millerjp) | 2026-04-21 | — |
+
+---
+
+_1 contributor so far. Full signature records live in [`signatures/version1/cla.json`](./signatures/version1/cla.json)._
