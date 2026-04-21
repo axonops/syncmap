@@ -270,7 +270,7 @@ func TestReadmeQuickStart_Compiles(t *testing.T) {
 }
 
 // TestGovernance_NoticeFileExists asserts NOTICE is present at the
-// repo root and carries the AxonOps and upstream Robert Gooding
+// repo root and carries the AxonOps and upstream Richard Gooding
 // attribution required for the fork.
 func TestGovernance_NoticeFileExists(t *testing.T) {
 	t.Parallel()
@@ -284,7 +284,7 @@ func TestGovernance_NoticeFileExists(t *testing.T) {
 		"NOTICE must reference the Apache License")
 	assert.Contains(t, s, "rgooding/go-syncmap",
 		"NOTICE must credit the upstream repository")
-	assert.Contains(t, s, "Robert Gooding",
+	assert.Contains(t, s, "Richard Gooding",
 		"NOTICE must credit the upstream author by name")
 }
 
