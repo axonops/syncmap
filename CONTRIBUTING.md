@@ -94,7 +94,7 @@ Releases happen exclusively through the [release workflow](./.github/workflows/r
 
 ## Reporting security issues
 
-Do **not** open a public issue for a suspected vulnerability. Email `oss@axonops.com`. See [`SECURITY.md`](./SECURITY.md) for the full disclosure process and response timeline.
+Do **not** open a public issue for a suspected vulnerability. Use GitHub's private advisory flow via the [Security tab](https://github.com/axonops/syncmap/security/advisories/new). See [`SECURITY.md`](./SECURITY.md) for the full disclosure process and response timeline.
 
 ## Licence
 

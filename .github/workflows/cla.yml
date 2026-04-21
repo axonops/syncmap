@@ -57,7 +57,7 @@ jobs:
 
             > I have read the CLA Document and I hereby sign the CLA
 
-            The CLA is a one-time agreement that covers every future contribution you make to any AxonOps open-source project. If you have questions before signing, please open a discussion or email `oss@axonops.com`.
+            The CLA is a one-time agreement that covers every future contribution you make to any AxonOps open-source project. If you have questions before signing, please open an issue on this repository.
           custom-pr-sign-comment: "I have read the CLA Document and I hereby sign the CLA"
           custom-allsigned-prcomment: "All contributors have signed the CLA. ✅"
           signed-commit-message: "chore(cla): $contributorName signed the CLA in #$pullRequestNo"

@@ -313,7 +313,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the branching model, commit messa
 
 ## 🔐 Security
 
-Report suspected vulnerabilities privately to **oss@axonops.com**. Do not open a public issue. See [`SECURITY.md`](./SECURITY.md) for the full policy, supported-version table, and threat model.
+Do not open a public issue for a suspected vulnerability. Use GitHub's private advisory flow — [**Report a vulnerability**](https://github.com/axonops/syncmap/security/advisories/new) — which creates a private channel between you and the maintainers. See [`SECURITY.md`](./SECURITY.md) for the full policy, supported-version table, and threat model.
 
 ## 📜 Attribution
 
@@ -504,7 +504,7 @@ Releases happen exclusively through the [release workflow](./.github/workflows/r
 
 ## Reporting security issues
 
-Do **not** open a public issue for a suspected vulnerability. Email `oss@axonops.com`. See [`SECURITY.md`](./SECURITY.md) for the full disclosure process and response timeline.
+Do **not** open a public issue for a suspected vulnerability. Use GitHub's private advisory flow via the [Security tab](https://github.com/axonops/syncmap/security/advisories/new). See [`SECURITY.md`](./SECURITY.md) for the full disclosure process and response timeline.
 
 ## Licence
 
@@ -550,7 +550,13 @@ The `syncmap` library follows [Semantic Versioning](https://semver.org/spec/v2.0
 
 **Do not open a public issue for a suspected vulnerability.**
 
-Email **oss@axonops.com** with:
+Use GitHub's private vulnerability reporting:
+
+**[Report a vulnerability](https://github.com/axonops/syncmap/security/advisories/new)**
+
+GitHub creates a private advisory visible only to you and the maintainers. You can attach proof-of-concept code, crash reports, or `go test -race` output directly to the advisory, and the discussion stays private until a fix ships.
+
+When you file, please include:
 
 - A concise description of the issue.
 - Steps to reproduce, including the Go version and OS/architecture.
@@ -562,7 +568,7 @@ We will:
 - Acknowledge receipt within **3 business days**.
 - Share a mitigation plan within **14 business days**.
 - Coordinate an embargoed release with you if a fix requires a new tag.
-- Credit you in the release notes and in this repository's security advisories unless you request otherwise.
+- Credit you in the release notes and on the advisory unless you request otherwise.
 
 ## Dependency security
 

@@ -34,7 +34,13 @@ The `syncmap` library follows [Semantic Versioning](https://semver.org/spec/v2.0
 
 **Do not open a public issue for a suspected vulnerability.**
 
-Email **oss@axonops.com** with:
+Use GitHub's private vulnerability reporting:
+
+**[Report a vulnerability](https://github.com/axonops/syncmap/security/advisories/new)**
+
+GitHub creates a private advisory visible only to you and the maintainers. You can attach proof-of-concept code, crash reports, or `go test -race` output directly to the advisory, and the discussion stays private until a fix ships.
+
+When you file, please include:
 
 - A concise description of the issue.
 - Steps to reproduce, including the Go version and OS/architecture.
@@ -46,7 +52,7 @@ We will:
 - Acknowledge receipt within **3 business days**.
 - Share a mitigation plan within **14 business days**.
 - Coordinate an embargoed release with you if a fix requires a new tag.
-- Credit you in the release notes and in this repository's security advisories unless you request otherwise.
+- Credit you in the release notes and on the advisory unless you request otherwise.
 
 ## Dependency security
 
